@@ -19,7 +19,7 @@ degeneracy_pairs <- read_tsv("./results/degeneracy_pairs.tsv")
 source_to_del <- readRDS("./results/source_to_del.rds")
 
 
-source("_lib.R")
+source("./scripts/_lib.R")
 
 # Same initial weight mat
 
