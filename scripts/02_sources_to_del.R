@@ -58,4 +58,4 @@ eff_stat <- eff_metr %>%
 
 # names of top 5 highest effectros for perturbation 
 
-saveRDS(eff_stat$dominant_source[1:5], "results/source_to_del.RDS")
+saveRDS(eff_stat$dominant_source, "results/source_to_del.RDS")
