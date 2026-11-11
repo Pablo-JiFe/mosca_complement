@@ -6,7 +6,6 @@ library(tibble)
 library(tidyr)
 library(foreach)
 library(doParallel)
-library(parallel)
 
 
 
@@ -18,8 +17,9 @@ metrics <- read_tsv("./results/perturbome_metrics.tsv")
 degeneracy_pairs <- read_tsv("./results/degeneracy_pairs.tsv")
 source_to_del <- readRDS("./results/source_to_del.rds")
 
+total_runs <- 140
 
-source("./scripts/_lib.R")
+source("_lib.R")
 
 # Same initial weight mat
 
@@ -63,7 +63,7 @@ random_sources <- sample(
     metrics$active &
       !(metrics$source %in% source_to_del)
   ],
-  size = 100 - length(source_to_del),
+  size = total_runs - length(source_to_del),
   replace = FALSE
 )
 
@@ -71,13 +71,11 @@ random_sources <- sample(
 
 all_sources <- c(source_to_del, random_sources)
 
-# Id of type of analysis, first n correspond to selected and next untul 100 random
+# Id of type of analysis
 
-type_of_source <- c(rep("numb", length(source_to_del)), rep("rand", 100 - length(source_to_del)))
+type_of_source <- c(rep("numb", length(source_to_del)), rep("rand", total_runs - length(source_to_del)))
 
-#cores
-
-cores = detectCores(logical = TRUE) - 1
+cores = 14
 cl <- makeCluster(cores) 
 clusterEvalQ(cl, {
   library(Matrix)
@@ -85,12 +83,8 @@ clusterEvalQ(cl, {
 })
 registerDoParallel(cl)
 
-# parallel loop
-
 effector_loss_par_res <- 
-  foreach(e=1:100, .packages = c("Matrix", "tibble")) %dopar% {
-    
-    #source at loop e
+  foreach(e=1:total_runs, .packages = c("Matrix", "tibble")) %dopar% {
     
     a <- all_sources[e]
     
@@ -98,7 +92,6 @@ effector_loss_par_res <-
     
     X_original <- raw_wide
     
-    # change values of source at loop e to 0
     
     W_lesion <- W
     W_lesion[a, ] <- 0
@@ -107,11 +100,7 @@ effector_loss_par_res <-
     B_lesion <- B
     B_lesion[, a] <- 0
     
-    # loentief inverse
-    
     X_lesion <- t(solve(I - t(W_lesion), t(B_lesion)))
-    
-    # result tibble 
     
     effector_loss_par <- tibble(
       lesion_id = e,
@@ -120,7 +109,7 @@ effector_loss_par_res <-
       effector_group = rownames(X_original),
       original = rowSums(X_original),
       post_lesion = rowSums(X_lesion),
-      absolute_loss = rowSums(X_original) - rowSums(X_lesion) # substraction
+      absolute_loss = rowSums(X_original) - rowSums(X_lesion)
     )
     
     print(paste(e))
@@ -130,20 +119,16 @@ effector_loss_par_res <-
   }
 stopCluster(cl)
 
-# First object to then join with others
 
 effector_tibb <- effector_loss_par_res[[1]] %>%
   mutate(name = names(effector_loss_par_res)[1])
 
-# Join with rest of result
-
-for (i in 2:100) {
+for (i in 2:total_runs) {
   effector_tibb <-
     rbind(effector_tibb, effector_loss_par_res[[i]] %>%
             mutate(name = names(effector_loss_par_res)[i]))
 }
 
-# Join with metrics for information
 
 effector_comp <- effector_tibb %>% 
   left_join(
@@ -151,6 +136,5 @@ effector_comp <- effector_tibb %>%
       select(source, type, dominant_effector, superclass),
     by = "source", multiple = "all"
   ) 
-
 
 saveRDS(effector_comp, "effector_loss_dom.RDS")
