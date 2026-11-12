@@ -16,6 +16,9 @@ umap <- read_tsv("results/perturbome_umap.tsv", show_col_types = FALSE) |>
   left_join(metrics, by = "source")
 deg <- read_tsv("results/degeneracy_structural.tsv", show_col_types = FALSE) |>
   mutate(neighbor_jaccard = pmax(out_neighbor_jaccard, in_neighbor_jaccard))
+effector_comp_summ <- readRDS("results/effector_comp_summ.RDS")
+eff_metr <- readRDS("results/dom_source.RDS")
+sources_to_del_data <- readRDS("results/source_to_del_data.RDS")
 
 
 fill_manual_pal <-   scale_fill_manual(
@@ -87,8 +90,6 @@ umap1 <-
   theme_minimal(base_size = 20) +
   coord_fixed(ratio = 1)
 
-
-umap1
 
 umap2 <- 
   umap %>%
@@ -231,4 +232,91 @@ neighbor_plot_2 <- deg %>%
 neighbor_plot_2 / neighbor_plot_1 + 
   patchwork::plot_annotation(tag_levels = "A")
 
+
+
+#Boxplot
+
+first_bxpl <- effector_comp_summ %>% 
+  ggplot(aes(x = condition, y = median_loss, fill = condition)) + 
+  geom_boxplot() + 
+  scale_y_log10() + 
+  scale_fill_manual(values = c("#334499", "#994433"), labels = c(
+    "numb" = "Selected units",
+    "rand" = "Randomly selected units"
+  )) +
+  labs(x = "Condition", y = "Loss log10 transformed", fill = "Condition") +
+  scale_x_discrete(labels = c(
+    "numb" = "Selected units",
+    "rand" = "Randomly selected units"
+  )) + 
+  theme_minimal(base_size = 25) +
+  coord_fixed(ratio = 0.15)
+
+# Breadth plot
+
+
+breadth_plt <- effector_comp_summ %>% 
+  ggplot(aes(x = breadth, y = median_loss, colour = condition)) + 
+  geom_point(position = "jitter") +
+  theme_minimal(base_size = 20) + 
+  labs(x = "Breadth", y = "Median loss", colour = "Condition") + 
+  scale_color_manual(values = c("#334499", "#994433"), labels = c(
+    "numb" = "Selected units",
+    "rand" = "Randomly selected units"
+  )) +
+  geom_text_repel(
+    data = subset(effector_comp_summ, rank <= 18 & condition == "numb"),
+    aes(label = source, x = breadth, y = median_loss),
+    size = 3,
+    vjust = -2,
+    segment.color = "gray",     
+    segment.size = 1.1,           
+    segment.alpha = 0.7,          
+    min.segment.length = 0        
+  ) 
+
+second_bxplt <- sources_to_del_data %>% 
+  ggplot(aes(x = factor(over_elb), y = median_loss, fill = factor(over_elb))) + 
+  geom_boxplot() +
+  scale_x_discrete(labels = c(
+    "0" = "Under elbow threshold",
+    "1" = "Over elbow threshold"
+  )) + 
+  scale_y_log10() +
+  theme_minimal(base_size = 20) + 
+  labs(x = "Sources with breadth over the median", y = "Median loss", colour = "Sources with breadth over the median", fill = "Over or under elbow threshold") + 
+  scale_fill_manual(values = c("#334499", "#994433"), labels = c(
+    "0" = "Under elbow threshold",
+    "1" = "Over elbow threshold"
+  )) +
+  coord_fixed(ratio = 0.15)
+
+
+fill_manual_pal <-   scale_fill_manual(
+  values = c(
+    "#4477AA", "#EE6677", "#228833", "#888888",
+    "#66CCEE", "lightpink", "#324537", "#332288",
+    "#44AA99", "slateblue1", "coral1", "#DDCC77",
+    "#DDAA33", "#88CCEE", "#661100", "#343434",
+    "#AA4466", "#004488"
+  ))
+
+alluvial <- 
+  eff_metr %>% 
+  mutate(over_elb = factor(ifelse(dominant_source %in% sources_to_del_data$dominant_source[sources_to_del_data$over_elb == 1], 1, 0))) %>% 
+  filter(over_elb == 1) %>% 
+  select(effector, dominant_source, value_dom_source, over_elb) %>% 
+  ggplot(aes(axis1 = effector, axis2 = dominant_source)) + 
+  geom_alluvium(aes(fill = dominant_source), width = 1/6) +
+  geom_stratum(width = 1/6, color = "grey") +
+  geom_text(stat = "stratum", aes(label = after_stat(stratum)), size = 2.5) +
+  scale_x_discrete(limits = c("Effector group", "Dominant source"), expand = c(.05, .05)) +
+  fill_manual_pal + 
+  theme_minimal(base_size = 15) +
+  theme(legend.position = "none")
+
+
+(((first_bxpl | second_bxplt | patchwork::plot_spacer()) + patchwork::plot_layout(widths = c(1,1,0.1))) / ((breadth_plt | alluvial) + patchwork::plot_layout(widths = c(3,4)))) + 
+  patchwork::plot_layout(heights = c(2,3)) +
+  patchwork::plot_annotation(tag_levels = "A")
 
