@@ -11,6 +11,7 @@ sources_to_del_data <- readRDS("results/source_to_del_data.RDS")
 metrics <- readr::read_tsv("results/perturbome_metrics.tsv")
 eff_metr <- readRDS("results/dom_source.RDS")
 
+
 # Obtain median of each perturbed source
 
 effector_comp_summ <- 
