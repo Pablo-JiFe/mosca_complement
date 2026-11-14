@@ -19,6 +19,8 @@ deg <- read_tsv("results/degeneracy_structural.tsv", show_col_types = FALSE) |>
 effector_comp_summ <- readRDS("results/effector_comp_summ.RDS")
 eff_metr <- readRDS("results/dom_source.RDS")
 sources_to_del_data <- readRDS("results/source_to_del_data.RDS")
+sensitivity <- readr::read_tsv("results/sensitivity/model_sensitivity.tsv")
+
 
 
 fill_manual_pal <-   scale_fill_manual(
@@ -32,44 +34,26 @@ fill_manual_pal <-   scale_fill_manual(
   name = "Superclass"
 ) 
 
-pca_var %>% 
-  ggplot(aes(x = pc, y = cumulative)) +
-  geom_point() +
-  geom_vline(xintercept = 53, colour = "red") +
-  theme_minimal() +
-  labs(x = "PC", y = "Cumulative variance explained") +
-  theme(panel.grid.major = element_line(color = "grey80", linewidth = 0.5)) + 
-  scale_x_continuous(breaks = c(1, seq(10, 90, by = 10), 99)) 
+fill_manual_supp <-   scale_fill_manual(
+  values = c(
+    "lightpink", "#EE6677", 
+    "#66CCEE", "#004488","#332288", 
+    "slateblue1", "#228833", "#44AA99","#53d377", "#DDCC77",
+    "#DDAA33", "#88CCEE", "#661100", "#343434",
+    "#AA4466"
+  ))
 
 
-parallel %>% 
-  ggplot(aes(x = pc)) + 
-  geom_line(
-    aes(y = observed_eigenvalue, colour = "Observed", linetype = "Observed"),
-    linewidth = 1
-  ) +
-  geom_line(
-    aes(y = null_mean, colour = "Null mean", linetype = "Null mean"),
-    linewidth = 1
-  ) +
-  labs(
-    x = "PC",
-    y = "Eigenvalue",
-    colour = "Distribution",
-    linetype = "Distribution"
-  ) +
-  scale_colour_manual(
-    values = c("Observed" = "red", "Null mean" = "blue")
-  ) +
-  scale_linetype_manual(
-    values = c("Observed" = "dashed", "Null mean" = "solid")
-  ) +
-  theme_minimal() +
-  theme(
-    panel.grid.major = element_line(color = "grey80", linewidth = 0.5)
-  ) +
-  scale_x_continuous(breaks = c(1, seq(10, 90, by = 10), 99)) +
-  geom_vline(xintercept = 53, colour = "black")
+
+fill_manual_alluvial <-   scale_fill_manual(
+  values = c(
+    "#4477AA", "#EE6677", "#228833", "#661100",
+    "#66CCEE", "lightpink", "#324537", "#332288",
+    "#44AA99", "slateblue1", "coral1", "#DDCC77",
+    "#DDAA33", "#88CCEE", "#888888", "#343434",
+    "#AA4466", "#004488"
+  ))
+
 
 library(scales)
 
@@ -241,15 +225,15 @@ first_bxpl <- effector_comp_summ %>%
   geom_boxplot() + 
   scale_y_log10() + 
   scale_fill_manual(values = c("#334499", "#994433"), labels = c(
-    "numb" = "Selected units",
-    "rand" = "Randomly selected units"
+    "numb" = "High impact",
+    "rand" = "Randomly High impact"
   )) +
   labs(x = "Condition", y = "Loss log10 transformed", fill = "Condition") +
   scale_x_discrete(labels = c(
-    "numb" = "Selected units",
-    "rand" = "Randomly selected units"
+    "numb" = "High impact",
+    "rand" = "Randomly High impact"
   )) + 
-  theme_minimal(base_size = 25) +
+  theme_minimal(base_size = 20) +
   coord_fixed(ratio = 0.15)
 
 # Breadth plot
@@ -261,8 +245,8 @@ breadth_plt <- effector_comp_summ %>%
   theme_minimal(base_size = 20) + 
   labs(x = "Breadth", y = "Median loss", colour = "Condition") + 
   scale_color_manual(values = c("#334499", "#994433"), labels = c(
-    "numb" = "Selected units",
-    "rand" = "Randomly selected units"
+    "numb" = "High impact",
+    "rand" = "Randomly High impact"
   )) +
   geom_text_repel(
     data = subset(effector_comp_summ, rank <= 18 & condition == "numb"),
@@ -275,31 +259,26 @@ breadth_plt <- effector_comp_summ %>%
     min.segment.length = 0        
   ) 
 
-second_bxplt <- sources_to_del_data %>% 
-  ggplot(aes(x = factor(over_elb), y = median_loss, fill = factor(over_elb))) + 
+second_bxplt <- 
+  sources_to_del_data %>% 
+  mutate(over_elb = relevel(factor(over_elb), ref = 1)) %>% 
+  ggplot(aes(x = fct_reorder(over_elb, as.numeric(over_elb), .desc = TRUE), y = median_loss, fill = over_elb)) + 
   geom_boxplot() +
   scale_x_discrete(labels = c(
-    "0" = "Under elbow threshold",
-    "1" = "Over elbow threshold"
+    
+    "1" = "Over elbow threshold",
+    "0" = "Under elbow threshold"
   )) + 
   scale_y_log10() +
   theme_minimal(base_size = 20) + 
-  labs(x = "Sources with breadth over the median", y = "Median loss", colour = "Sources with breadth over the median", fill = "Over or under elbow threshold") + 
-  scale_fill_manual(values = c("#334499", "#994433"), labels = c(
-    "0" = "Under elbow threshold",
-    "1" = "Over elbow threshold"
+  labs(x = "Sources divided by maximmum distance", y = "Median loss", fill = "Over or under elbow threshold") + 
+  scale_fill_manual(values = c("#004488", "slateblue1"), labels = c(
+    
+    "1" = "Over elbow threshold",
+    "0" = "Under elbow threshold"
   )) +
   coord_fixed(ratio = 0.15)
 
-
-fill_manual_pal <-   scale_fill_manual(
-  values = c(
-    "#4477AA", "#EE6677", "#228833", "#888888",
-    "#66CCEE", "lightpink", "#324537", "#332288",
-    "#44AA99", "slateblue1", "coral1", "#DDCC77",
-    "#DDAA33", "#88CCEE", "#661100", "#343434",
-    "#AA4466", "#004488"
-  ))
 
 alluvial <- 
   eff_metr %>% 
@@ -311,12 +290,114 @@ alluvial <-
   geom_stratum(width = 1/6, color = "grey") +
   geom_text(stat = "stratum", aes(label = after_stat(stratum)), size = 2.5) +
   scale_x_discrete(limits = c("Effector group", "Dominant source"), expand = c(.05, .05)) +
-  fill_manual_pal + 
+  fill_manual_alluvial + 
   theme_minimal(base_size = 15) +
   theme(legend.position = "none")
 
 
-(((first_bxpl | second_bxplt | patchwork::plot_spacer()) + patchwork::plot_layout(widths = c(1,1,0.1))) / ((breadth_plt | alluvial) + patchwork::plot_layout(widths = c(3,4)))) + 
+(((first_bxpl | breadth_plt) + patchwork::plot_layout(widths = c(2,4))) / ((second_bxplt | alluvial) + patchwork::plot_layout(widths = c(2,4)))) + 
   patchwork::plot_layout(heights = c(2,3)) +
   patchwork::plot_annotation(tag_levels = "A")
 
+
+
+pca_var_p <- pca_var %>% 
+  ggplot(aes(x = pc, y = cumulative)) +
+  geom_point() +
+  geom_vline(xintercept = 53, colour = "red") +
+  theme_minimal(base_size = 25) +
+  labs(x = "PC", y = "Cumulative variance explained") +
+  theme(panel.grid.major = element_line(color = "grey80", linewidth = 0.5)) + 
+  scale_x_continuous(breaks = c(1, seq(10, 90, by = 10), 99)) + 
+  coord_fixed(50)
+
+
+null_pca <- 
+  parallel %>% 
+  ggplot(aes(x = pc)) + 
+  geom_line(
+    aes(y = observed_eigenvalue, colour = "Observed", linetype = "Observed"),
+    linewidth = 1
+  ) +
+  geom_line(
+    aes(y = null_mean, colour = "Null mean", linetype = "Null mean"),
+    linewidth = 1
+  ) +
+  labs(
+    x = "PC",
+    y = "Eigenvalue",
+    colour = "Distribution",
+    linetype = "Distribution"
+  ) +
+  scale_colour_manual(
+    values = c("Observed" = "red", "Null mean" = "blue")
+  ) +
+  scale_linetype_manual(
+    values = c("Observed" = "dashed", "Null mean" = "solid")
+  ) +
+  theme_minimal(base_size = 25) +
+  theme(
+    panel.grid.major = element_line(color = "grey80", linewidth = 0.5)
+  ) +
+  scale_x_continuous(breaks = c(1, seq(10, 90, by = 10), 99)) +
+  geom_vline(xintercept = 53, colour = "black") + 
+  coord_fixed(15000)
+
+
+
+(pca_var_p | null_pca) + 
+  patchwork::plot_annotation(tag_levels = "A") 
+
+sensitivity_pl <- 
+  sensitivity %>%  
+  mutate(
+    effector_grouping = gsub("(.*)_(.*)_(.*)", "\\1 \\2 \\3", effector_grouping),
+    scenario = factor(scenario, levels = c("primary", "rho", "synapse_threshold", "effector_taxonomy")),
+    
+    "type" = case_when(
+      scenario == "primary" ~ "primary",
+      scenario == "rho" ~ paste0("Rho: ", rho),
+      scenario == "synapse_threshold" ~ as.character(min_synapses),
+      scenario == "effector_taxonomy" ~ paste0("E", substr(start = 2, stop = stringr::str_length(effector_grouping), x = effector_grouping))
+    ),
+    
+    type = factor(
+      type,
+      levels = c(
+        "primary",
+        paste0("Rho: ", sort(unique(rho[scenario == "rho"]))),
+        as.character(sort(unique(min_synapses[scenario == "synapse_threshold"]))),
+        unique(type[scenario == "effector_taxonomy"])
+      )
+    )
+  ) %>%  
+  pivot_longer(
+    cols = c(median_breadth, median_nearest_distinct_type_cosine, pc50),
+    names_to = "test",
+    values_to = "values"
+  ) %>%  
+  ggplot(aes(x = type, y = values, fill = scenario)) +  
+  geom_bar(stat = "identity") +  
+  facet_grid(
+    test ~ scenario, 
+    scales = "free", 
+    space = "free_x",
+    labeller = labeller(
+      scenario = c(
+        "primary" = "Primary",
+        "rho" = "Rho Sensitivity",
+        "synapse_threshold" = "Synapse Threshold",
+        "effector_taxonomy" = "Effector Grouping"
+      ),
+      test = c(
+        "median_breadth" = "Median Breadth",
+        "median_nearest_distinct_type_cosine" = "Nearest Distinct Cosine",
+        "pc50" = "PC50"
+      )
+    )
+  ) +  
+  scale_fill_manual(values = c("#df1a1a", "#0077af", "#5a32cc", "#1a02cc")) +  
+  theme_minimal(base_size = 25) +  
+  scale_x_discrete(guide = guide_axis(angle = 45)) + 
+  labs(x = "Test", y = "Values") +
+  theme(legend.position = "none")
