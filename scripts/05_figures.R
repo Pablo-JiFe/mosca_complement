@@ -6,6 +6,7 @@ library(readr)
 library(ggsci)
 library(cowplot)
 library(grid)
+library(ggalluvial)
 library(forcats) 
 
 
@@ -248,7 +249,7 @@ breadth_plt <- effector_comp_summ %>%
     "numb" = "High impact",
     "rand" = "Randomly High impact"
   )) +
-  geom_text_repel(
+  ggrepel::geom_text_repel(
     data = subset(effector_comp_summ, rank <= 18 & condition == "numb"),
     aes(label = source, x = breadth, y = median_loss),
     size = 3,
@@ -371,7 +372,7 @@ sensitivity_pl <-
       )
     )
   ) %>%  
-  pivot_longer(
+  tidyr::pivot_longer(
     cols = c(median_breadth, median_nearest_distinct_type_cosine, pc50),
     names_to = "test",
     values_to = "values"
@@ -401,3 +402,5 @@ sensitivity_pl <-
   scale_x_discrete(guide = guide_axis(angle = 45)) + 
   labs(x = "Test", y = "Values") +
   theme(legend.position = "none")
+
+sensitivity_pl
