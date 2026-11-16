@@ -5,9 +5,11 @@ library(ggnewscale)
 library(readr)
 library(ggsci)
 library(cowplot)
+library(gridExtra)
 library(grid)
 library(ggalluvial)
 library(forcats) 
+library(stringr)
 
 
 pca_var <- read_tsv("results/perturbome_pca_variance.tsv", show_col_types = FALSE)
@@ -25,6 +27,7 @@ sensitivity <- readr::read_tsv("results/sensitivity/model_sensitivity.tsv")
 
 
 fill_manual_pal <-   scale_fill_manual(
+  labels = superclass_names,
   values = c(
     "#4477AA", "#EE6677", "#228833", "#CCBB44",
     "#66CCEE", "lightpink", "#BBBBBB", "#332288",
@@ -55,6 +58,18 @@ fill_manual_alluvial <-   scale_fill_manual(
     "#AA4466", "#004488"
   ))
 
+superclass_names <- 
+  (
+    metrics %>% 
+  count(superclass) %>% 
+  mutate(names = gsub("(.*)_(.*)", "\\1 \\2", str_to_title(superclass)))
+  )$names
+
+names(superclass_names) <-   (
+  metrics %>% 
+    count(superclass) %>% 
+    mutate(names = gsub("(.*)_(.*)", "\\1 \\2", str_to_title(superclass)))
+)$superclass
 
 library(scales)
 
@@ -63,17 +78,27 @@ umap1 <-
   ggplot(aes(
     x = UMAP1,
     y = UMAP2,
-    colour = breadth
+    fill = breadth
   )) +
-  paletteer::scale_colour_paletteer_c("grDevices::Blue-Red 3") + 
-  geom_point(
-  ) +
+  paletteer::scale_fill_paletteer_c("ggthemes::Purple") + 
+  geom_point(shape = 21,
+             size = 5,
+             color = "black",
+             stroke = 0.4,
+             alpha = 0.8) +
   labs(
     x = "UMAP1",
-    y = "UMAP2"
+    y = "UMAP2",
+    fill = "Breadth"
   ) +
   theme_minimal(base_size = 20) +
-  coord_fixed(ratio = 1)
+  theme(
+    legend.position = "right",
+    legend.key.size = unit(0.45, "cm"),
+    legend.text = element_text(size = 12),
+    legend.title = element_text(size = 9, face = "bold"),
+    legend.spacing.y = unit(0.05, "cm")
+  )
 
 
 umap2 <- 
@@ -186,7 +211,8 @@ neighbor_plot_1 <- deg |>
     x = "Perturbation cosine similarity",
     colour = "Direct connection"
   ) +
-  theme_minimal(base_size = 25)
+  theme_classic(base_size = 30) + 
+  guides(color = guide_legend(override.aes = list(size = 8, alpha = 1)))
 
 
 
@@ -209,7 +235,7 @@ neighbor_plot_2 <- deg %>%
     label = "Median pair cosine null = 0.8354",
     hjust = 1.05
   ) + 
-  theme_minimal(base_size = 20) + 
+  theme_classic(base_size = 28) +
   labs(x = "Cosine similarity between nearest neighbor pairs from different neuronal types", y = "Number of unique pairs")
 
 
@@ -229,15 +255,39 @@ first_bxpl <- effector_comp_summ %>%
     "numb" = "High impact",
     "rand" = "Randomly High impact"
   )) +
-  labs(x = "Condition", y = "Loss log10 transformed", fill = "Condition") +
+  labs(x = "Condition", y = "Median loss (log10)", fill = "Condition") +
   scale_x_discrete(labels = c(
     "numb" = "High impact",
     "rand" = "Randomly High impact"
   )) + 
   theme_minimal(base_size = 20) +
-  coord_fixed(ratio = 0.15)
+  theme(legend.position = "none") 
 
 # Breadth plot
+
+
+
+table_subset <- effector_comp_summ %>%
+  filter(rank <= 18 & condition == "numb") %>%
+  select(source, breadth, median_loss) %>% 
+  mutate(breadth = round(breadth, 3),
+         median_loss = round(median_loss, 3)) %>% 
+  rename(
+    "Source" = "source",
+    "Breadth" = "breadth",
+    "Median loss (log10)" = "median_loss"
+  )
+
+
+
+my_table <- tableGrob(
+  table_subset, 
+  rows = NULL, 
+  theme = ttheme_minimal(base_size = 15, base_colour = "black", base_family = "",
+                 parse = FALSE, padding = unit(c(1, 1), "mm"))
+  
+)
+
 
 
 breadth_plt <- effector_comp_summ %>% 
@@ -253,12 +303,21 @@ breadth_plt <- effector_comp_summ %>%
     data = subset(effector_comp_summ, rank <= 18 & condition == "numb"),
     aes(label = source, x = breadth, y = median_loss),
     size = 3,
-    vjust = -2,
+    vjust = -4.2,
+    hjust = 0.5,
     segment.color = "gray",     
     segment.size = 1.1,           
     segment.alpha = 0.7,          
     min.segment.length = 0        
+  ) +
+  annotation_custom(
+    my_table, 
+    xmin = 0.02,   
+    xmax = 0.35,   
+    ymin = 0.1,   
+    ymax = 0.40    
   ) 
+
 
 second_bxplt <- 
   sources_to_del_data %>% 
@@ -272,37 +331,39 @@ second_bxplt <-
   )) + 
   scale_y_log10() +
   theme_minimal(base_size = 20) + 
-  labs(x = "Sources divided by maximmum distance", y = "Median loss", fill = "Over or under elbow threshold") + 
+  labs(x = "Sources divided by maximmum distance", y = "Median loss (log10)", fill = "Elbow threshold") + 
   scale_fill_manual(values = c("#004488", "slateblue1"), labels = c(
     
     "1" = "Over elbow threshold",
     "0" = "Under elbow threshold"
-  )) +
-  coord_fixed(ratio = 0.15)
+  )) 
 
-
-alluvial <- 
-  eff_metr %>% 
+alluvial <- eff_metr %>% 
   mutate(over_elb = factor(ifelse(dominant_source %in% sources_to_del_data$dominant_source[sources_to_del_data$over_elb == 1], 1, 0))) %>% 
-  filter(over_elb == 1) %>% 
+  filter(over_elb == 1, dominant_source %in% (sources_to_del_data %>% 
+                                                arrange(rank))$dominant_source[1:5]) %>% 
+  mutate(effector = gsub("(.*)_(.*)", "\\1 \\2", str_to_title(effector))) %>% 
   select(effector, dominant_source, value_dom_source, over_elb) %>% 
   ggplot(aes(axis1 = effector, axis2 = dominant_source)) + 
-  geom_alluvium(aes(fill = dominant_source), width = 1/6) +
-  geom_stratum(width = 1/6, color = "grey") +
-  geom_text(stat = "stratum", aes(label = after_stat(stratum)), size = 2.5) +
-  scale_x_discrete(limits = c("Effector group", "Dominant source"), expand = c(.05, .05)) +
+  geom_alluvium(aes(fill = dominant_source), width = 0.7) +
+  geom_stratum(width = 0.4, color = "grey") +
+  geom_text(stat = "stratum", aes(label = after_stat(stratum)), size = 3) +
+  scale_x_discrete(
+    limits = c("Effector group", "Dominant source") ,
+    expand = expansion(mult = c(0.2, 0.2))
+    ) + 
   fill_manual_alluvial + 
-  theme_minimal(base_size = 15) +
+  theme_minimal(base_size = 1) +
   theme(legend.position = "none")
+  
 
 
-(((first_bxpl | breadth_plt) + patchwork::plot_layout(widths = c(2,4))) / ((second_bxplt | alluvial) + patchwork::plot_layout(widths = c(2,4)))) + 
-  patchwork::plot_layout(heights = c(2,3)) +
+
+(((first_bxpl | breadth_plt) + patchwork::plot_layout(widths = c(2,4))) / 
+    ((second_bxplt | alluvial) + patchwork::plot_layout(widths = c(3,4)))) + 
   patchwork::plot_annotation(tag_levels = "A")
 
-
-
-pca_var_p <- pca_var %>% 
+  pca_var_p <- pca_var %>% 
   ggplot(aes(x = pc, y = cumulative)) +
   geom_point() +
   geom_vline(xintercept = 53, colour = "red") +
@@ -349,8 +410,7 @@ null_pca <-
 (pca_var_p | null_pca) + 
   patchwork::plot_annotation(tag_levels = "A") 
 
-sensitivity_pl <- 
-  sensitivity %>%  
+sensitivity_pl <- sensitivity %>%  
   mutate(
     effector_grouping = gsub("(.*)_(.*)_(.*)", "\\1 \\2 \\3", effector_grouping),
     scenario = factor(scenario, levels = c("primary", "rho", "synapse_threshold", "effector_taxonomy")),
@@ -377,8 +437,9 @@ sensitivity_pl <-
     names_to = "test",
     values_to = "values"
   ) %>%  
-  ggplot(aes(x = type, y = values, fill = scenario)) +  
-  geom_bar(stat = "identity") +  
+  ggplot(aes(x = type, y = values, colour = scenario)) +  
+  geom_point() +
+  geom_line(aes(x = type, y = values, group = scenario)) + 
   facet_grid(
     test ~ scenario, 
     scales = "free", 
@@ -397,10 +458,11 @@ sensitivity_pl <-
       )
     )
   ) +  
-  scale_fill_manual(values = c("#df1a1a", "#0077af", "#5a32cc", "#1a02cc")) +  
+  scale_colour_manual(values = c("#df1a1a", "#0077af", "#5a32cc", "#1a02cc")) + 
   theme_minimal(base_size = 25) +  
   scale_x_discrete(guide = guide_axis(angle = 45)) + 
   labs(x = "Test", y = "Values") +
   theme(legend.position = "none")
+
 
 sensitivity_pl
