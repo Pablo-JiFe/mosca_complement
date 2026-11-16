@@ -120,17 +120,17 @@ umap2 <-
     x = "UMAP1",
     y = "UMAP2"
   ) +
-  theme_minimal(base_size = 12) +
+  theme_minimal(base_size = 20) +
   theme(
     legend.position = "right",
     legend.key.size = unit(0.45, "cm"),
-    legend.text = element_text(size = 12),
+    legend.text = element_text(size = 20),
     legend.title = element_text(size = 9, face = "bold"),
     legend.spacing.y = unit(0.05, "cm")
   ) +
   guides(
     fill = guide_legend(
-      ncol = 2,
+      ncol = 1,
       byrow = TRUE,
       override.aes = list(
         size = 10,
@@ -275,7 +275,7 @@ table_subset <- effector_comp_summ %>%
   rename(
     "Source" = "source",
     "Breadth" = "breadth",
-    "Median loss (log10)" = "median_loss"
+    "Median loss" = "median_loss"
   )
 
 
@@ -283,7 +283,7 @@ table_subset <- effector_comp_summ %>%
 my_table <- tableGrob(
   table_subset, 
   rows = NULL, 
-  theme = ttheme_minimal(base_size = 15, base_colour = "black", base_family = "",
+  theme = ttheme_minimal(base_size = 12, base_colour = "black", base_family = "",
                  parse = FALSE, padding = unit(c(1, 1), "mm"))
   
 )
@@ -292,7 +292,7 @@ my_table <- tableGrob(
 
 breadth_plt <- effector_comp_summ %>% 
   ggplot(aes(x = breadth, y = median_loss, colour = condition)) + 
-  geom_point(position = "jitter") +
+  geom_point() +
   theme_minimal(base_size = 20) + 
   labs(x = "Breadth", y = "Median loss", colour = "Condition") + 
   scale_color_manual(values = c("#334499", "#994433"), labels = c(
@@ -308,7 +308,8 @@ breadth_plt <- effector_comp_summ %>%
     segment.color = "gray",     
     segment.size = 1.1,           
     segment.alpha = 0.7,          
-    min.segment.length = 0        
+    min.segment.length = 0,
+    show.legend = FALSE
   ) +
   annotation_custom(
     my_table, 
@@ -346,22 +347,64 @@ alluvial <- eff_metr %>%
   select(effector, dominant_source, value_dom_source, over_elb) %>% 
   ggplot(aes(axis1 = effector, axis2 = dominant_source)) + 
   geom_alluvium(aes(fill = dominant_source), width = 0.7) +
-  geom_stratum(width = 0.4, color = "grey") +
+  geom_stratum(width = 0.3, color = "grey") +
   geom_text(stat = "stratum", aes(label = after_stat(stratum)), size = 3) +
   scale_x_discrete(
-    limits = c("Effector group", "Dominant source") ,
-    expand = expansion(mult = c(0.2, 0.2))
-    ) + 
+    limits = c("Effector group", "Dominant source"),
+    expand = expansion(mult = c(0.1, 0.1))
+  ) + 
   fill_manual_alluvial + 
-  theme_minimal(base_size = 1) +
-  theme(legend.position = "none")
+  theme_minimal(base_size = 20) +
+  theme(
+    legend.position = "none",
+    axis.text = element_text(size = 8)  
+  )
   
 
+bxplt2_no_legend <- second_bxplt + theme(legend.position = "none")
+bxplt2_legend <- get_legend(second_bxplt)
+
+breadth_no_legend <- breadth_plt + theme(legend.position = "none")
+breadth_legend <- get_legend(breadth_plt)
 
 
-(((first_bxpl | breadth_plt) + patchwork::plot_layout(widths = c(2,4))) / 
-    ((second_bxplt | alluvial) + patchwork::plot_layout(widths = c(3,4)))) + 
-  patchwork::plot_annotation(tag_levels = "A")
+first_bxpl <- 
+  first_bxpl +
+  labs(tag = "A") +
+  tag_theme
+
+breadth_no_legend <- 
+  breadth_no_legend +
+  labs(tag = "B") +
+  tag_theme
+
+bxplt2_no_legend <- 
+  bxplt2_no_legend + 
+  labs(tag = "C") +
+  tag_theme 
+
+alluvial <- 
+  alluvial + 
+  labs(tag = "D") +
+  tag_theme 
+
+plot <- 
+  ((((first_bxpl |
+        breadth_no_legend) + patchwork::plot_layout(widths = c(2, 5))
+)) /
+  (((
+    bxplt2_no_legend |
+      alluvial
+  )) + patchwork::plot_layout(widths = c(2, 5)))
+)
+
+
+labels <- (wrap_elements(breadth_legend) / wrap_elements(bxplt2_legend))
+
+((plot | labels ) +
+  patchwork::plot_layout(widths = c(5,1)))
+
+
 
   pca_var_p <- pca_var %>% 
   ggplot(aes(x = pc, y = cumulative)) +
@@ -462,7 +505,11 @@ sensitivity_pl <- sensitivity %>%
   theme_minimal(base_size = 25) +  
   scale_x_discrete(guide = guide_axis(angle = 45)) + 
   labs(x = "Test", y = "Values") +
-  theme(legend.position = "none")
+  theme(legend.position = "none",
+        panel.spacing = unit(2, "lines"),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 0.8)
+        
+  )
 
 
 sensitivity_pl
