@@ -10,6 +10,8 @@ library(grid)
 library(ggalluvial)
 library(forcats) 
 library(stringr)
+library(scales)
+
 
 
 pca_var <- read_tsv("results/perturbome_pca_variance.tsv", show_col_types = FALSE)
@@ -23,6 +25,21 @@ effector_comp_summ <- readRDS("results/effector_comp_summ.RDS")
 eff_metr <- readRDS("results/dom_source.RDS")
 sources_to_del_data <- readRDS("results/source_to_del_data.RDS")
 sensitivity <- readr::read_tsv("results/sensitivity/model_sensitivity.tsv")
+
+
+superclass_names <- 
+  (
+    metrics %>% 
+      count(superclass) %>% 
+      mutate(names = gsub("(.*)_(.*)", "\\1 \\2", str_to_title(superclass)))
+  )$names
+
+names(superclass_names) <-   (
+  metrics %>% 
+    count(superclass) %>% 
+    mutate(names = gsub("(.*)_(.*)", "\\1 \\2", str_to_title(superclass)))
+)$superclass
+
 
 
 
@@ -57,21 +74,6 @@ fill_manual_alluvial <-   scale_fill_manual(
     "#DDAA33", "#88CCEE", "#888888", "#343434",
     "#AA4466", "#004488"
   ))
-
-superclass_names <- 
-  (
-    metrics %>% 
-  count(superclass) %>% 
-  mutate(names = gsub("(.*)_(.*)", "\\1 \\2", str_to_title(superclass)))
-  )$names
-
-names(superclass_names) <-   (
-  metrics %>% 
-    count(superclass) %>% 
-    mutate(names = gsub("(.*)_(.*)", "\\1 \\2", str_to_title(superclass)))
-)$superclass
-
-library(scales)
 
 umap1 <- 
   umap %>%
@@ -268,7 +270,7 @@ first_bxpl <- effector_comp_summ %>%
 
 
 table_subset <- effector_comp_summ %>%
-  filter(rank <= 18 & condition == "numb") %>%
+  filter(rank_median_l <= 18 & condition == "numb") %>%
   select(source, breadth, median_loss) %>% 
   mutate(breadth = round(breadth, 3),
          median_loss = round(median_loss, 3)) %>% 
@@ -284,7 +286,7 @@ my_table <- tableGrob(
   table_subset, 
   rows = NULL, 
   theme = ttheme_minimal(base_size = 12, base_colour = "black", base_family = "",
-                 parse = FALSE, padding = unit(c(1, 1), "mm"))
+                         parse = FALSE, padding = unit(c(1, 1), "mm"))
   
 )
 
@@ -300,7 +302,7 @@ breadth_plt <- effector_comp_summ %>%
     "rand" = "Randomly High impact"
   )) +
   ggrepel::geom_text_repel(
-    data = subset(effector_comp_summ, rank <= 18 & condition == "numb"),
+    data = subset(effector_comp_summ, rank_median_l <= 18 & condition == "numb"),
     aes(label = source, x = breadth, y = median_loss),
     size = 3,
     vjust = -4.2,
@@ -318,6 +320,52 @@ breadth_plt <- effector_comp_summ %>%
     ymin = 0.1,   
     ymax = 0.40    
   ) 
+
+breadth_plt_max <- effector_comp_summ %>% 
+  ggplot(aes(x = breadth, y = max_loss, colour = condition)) + 
+  geom_point() +
+  theme_minimal(base_size = 20) + 
+  labs(x = "Breadth", y = "Maximum loss", colour = "Condition") + 
+  scale_color_manual(values = c("#334499", "#994433"), labels = c(
+    "numb" = "High impact",
+    "rand" = "Randomly High impact"
+  )) +
+  ggrepel::geom_text_repel(
+    data = subset(effector_comp_summ, rank_median_l <= 18 & condition == "numb"),
+    aes(label = source, x = breadth, y = max_loss),
+    size = 3,
+    vjust = -4.2,
+    hjust = 0.5,
+    segment.color = "gray",     
+    segment.size = 1.1,           
+    segment.alpha = 0.7,          
+    min.segment.length = 0,
+    show.legend = FALSE
+  ) 
+
+
+breadth_plt_min <- effector_comp_summ %>% 
+  ggplot(aes(x = breadth, y = min_loss, colour = condition)) + 
+  geom_point() +
+  theme_minimal(base_size = 20) + 
+  labs(x = "Breadth", y = "Min loss", colour = "Condition") + 
+  scale_color_manual(values = c("#334499", "#994433"), labels = c(
+    "numb" = "High impact",
+    "rand" = "Randomly High impact"
+  )) +
+  ggrepel::geom_text_repel(
+    data = subset(effector_comp_summ, rank_median_l <= 18 & condition == "numb"),
+    aes(label = source, x = breadth, y = min_loss),
+    size = 3,
+    vjust = -4.2,
+    hjust = 0.5,
+    segment.color = "gray",     
+    segment.size = 1.1,           
+    segment.alpha = 0.7,          
+    min.segment.length = 0,
+    show.legend = FALSE
+  ) 
+
 
 
 second_bxplt <- 
@@ -342,7 +390,7 @@ second_bxplt <-
 alluvial <- eff_metr %>% 
   mutate(over_elb = factor(ifelse(dominant_source %in% sources_to_del_data$dominant_source[sources_to_del_data$over_elb == 1], 1, 0))) %>% 
   filter(over_elb == 1, dominant_source %in% (sources_to_del_data %>% 
-                                                arrange(rank))$dominant_source[1:5]) %>% 
+                                                arrange(rank_median_l))$dominant_source[1:5]) %>% 
   mutate(effector = gsub("(.*)_(.*)", "\\1 \\2", str_to_title(effector))) %>% 
   select(effector, dominant_source, value_dom_source, over_elb) %>% 
   ggplot(aes(axis1 = effector, axis2 = dominant_source)) + 
@@ -359,7 +407,7 @@ alluvial <- eff_metr %>%
     legend.position = "none",
     axis.text = element_text(size = 8)  
   )
-  
+
 
 bxplt2_no_legend <- second_bxplt + theme(legend.position = "none")
 bxplt2_legend <- get_legend(second_bxplt)
@@ -391,22 +439,22 @@ alluvial <-
 plot <- 
   ((((first_bxpl |
         breadth_no_legend) + patchwork::plot_layout(widths = c(2, 5))
-)) /
-  (((
-    bxplt2_no_legend |
-      alluvial
-  )) + patchwork::plot_layout(widths = c(2, 5)))
-)
+  )) /
+    (((
+      bxplt2_no_legend |
+        alluvial
+    )) + patchwork::plot_layout(widths = c(2, 5)))
+  )
 
 
 labels <- (wrap_elements(breadth_legend) / wrap_elements(bxplt2_legend))
 
 ((plot | labels ) +
-  patchwork::plot_layout(widths = c(5,1)))
+    patchwork::plot_layout(widths = c(5,1)))
 
 
 
-  pca_var_p <- pca_var %>% 
+pca_var_p <- pca_var %>% 
   ggplot(aes(x = pc, y = cumulative)) +
   geom_point() +
   geom_vline(xintercept = 53, colour = "red") +
@@ -513,3 +561,238 @@ sensitivity_pl <- sensitivity %>%
 
 
 sensitivity_pl
+
+
+
+
+#Boxplot
+
+first_bxpl_med <- effector_comp_summ %>% 
+  ggplot(aes(x = condition, y = median_loss, fill = condition)) + 
+  geom_boxplot() + 
+  scale_y_log10() + 
+  scale_fill_manual(values = c("#334499", "#994433"), labels = c(
+    "numb" = "High impact",
+    "rand" = "Randomly selected"
+  )) +
+  labs(x = "Condition", y = "Median loss (log10)", fill = "Condition") +
+  scale_x_discrete(labels = c(
+    "numb" = "High impact",
+    "rand" = "Randomly selected"
+  )) + 
+  theme_minimal(base_size = 20) +
+  theme(legend.position = "none") 
+
+second_bxplt_med <- 
+  sources_to_del_data %>% 
+  mutate(over_elb = relevel(factor(over_elb), ref = 1)) %>% 
+  ggplot(aes(x = fct_reorder(over_elb, as.numeric(over_elb), .desc = TRUE), y = median_loss, fill = over_elb)) + 
+  geom_boxplot() +
+  scale_x_discrete(labels = c(
+    
+    "1" = "Over threshold",
+    "0" = "Under threshold"
+  )) + 
+  scale_y_log10() +
+  theme_minimal(base_size = 20) + 
+  labs(x = "Sources divided by maximum distance", y = "Median loss (log10)", fill = "Elbow threshold") + 
+  scale_fill_manual(values = c("#004488", "slateblue1"), labels = c(
+    
+    "1" = "Over threshold",
+    "0" = "Under threshold"
+  )) +
+  theme(legend.position = "none")
+
+
+first_bxpl_max <- effector_comp_summ %>% 
+  ggplot(aes(x = condition, y = max_loss, fill = condition)) + 
+  geom_boxplot() + 
+  scale_y_log10() + 
+  scale_fill_manual(values = c("#334499", "#994433"), labels = c(
+    "numb" = "High impact",
+    "rand" = "Random High impact"
+  )) +
+  labs(x = "Condition", y = "Maximum loss (log10)", fill = "Condition") +
+  scale_x_discrete(labels = c(
+    "numb" = "High impact",
+    "rand" = "Randomly selected"
+  )) + 
+  theme_minimal(base_size = 20) +
+  theme(legend.position = "none") 
+
+second_bxplt_max <- 
+  sources_to_del_data %>% 
+  mutate(over_elb = relevel(factor(over_elb), ref = 1)) %>% 
+  ggplot(aes(x = fct_reorder(over_elb, as.numeric(over_elb), .desc = TRUE), y = max_loss, fill = over_elb)) + 
+  geom_boxplot() +
+  scale_x_discrete(labels = c(
+    
+    "1" = "Over threshold",
+    "0" = "Under threshold"
+  )) + 
+  scale_y_log10() +
+  theme_minimal(base_size = 20) + 
+  labs(x = "Sources divided by maximum distance", y = "Maximum loss (log10)", fill = "Elbow threshold") + 
+  scale_fill_manual(values = c("#004488", "slateblue1"), labels = c(
+    
+    "1" = "Over threshold",
+    "0" = "Under threshold"
+  )) +
+  theme(legend.position = "none")
+
+first_bxpl_min <- effector_comp_summ %>% 
+  ggplot(aes(x = condition, y = min_loss, fill = condition)) + 
+  geom_boxplot() + 
+  scale_y_log10() + 
+  scale_fill_manual(values = c("#334499", "#994433"), labels = c(
+    "numb" = "High impact",
+    "rand" = "Randomly selected"
+  )) +
+  labs(x = "Condition", y = "Minimum loss (log10)", fill = "Condition") +
+  scale_x_discrete(labels = c(
+    "numb" = "High impact",
+    "rand" = "Randomly selected"
+  )) + 
+  theme_minimal(base_size = 20) +
+  theme(legend.position = "none") 
+
+second_bxplt_min <- 
+  sources_to_del_data %>% 
+  mutate(over_elb = relevel(factor(over_elb), ref = 1)) %>% 
+  ggplot(aes(x = fct_reorder(over_elb, as.numeric(over_elb), .desc = TRUE), y = min_loss, fill = over_elb)) + 
+  geom_boxplot() +
+  scale_x_discrete(labels = c(
+    
+    "1" = "Over threshold",
+    "0" = "Under threshold"
+  )) + 
+  scale_y_log10() +
+  theme_minimal(base_size = 20) + 
+  labs(x = "Sources divided by maximum distance", y = "Minimum loss (log10)", fill = "Elbow threshold") + 
+  scale_fill_manual(values = c("#004488", "slateblue1"), labels = c(
+    
+    "1" = "Over threshold",
+    "0" = "Under threshold"
+  )) +
+  theme(legend.position = "none")
+
+
+(first_bxpl_med | second_bxplt_med) /
+  (first_bxpl_max | second_bxplt_max) /
+  (first_bxpl_min | second_bxplt_min)
+
+
+# Breadth plot
+
+
+
+table_subset <- effector_comp_summ %>%
+  filter(rank_median_l <= 18 & condition == "numb") %>%
+  select(source, breadth, median_loss) %>% 
+  mutate(breadth = round(breadth, 3),
+         median_loss = round(median_loss, 3)) %>% 
+  rename(
+    "Source" = "source",
+    "Breadth" = "breadth",
+    "Median loss" = "median_loss"
+  )
+
+
+
+my_table <- tableGrob(
+  table_subset, 
+  rows = NULL, 
+  theme = ttheme_minimal(base_size = 12, base_colour = "black", base_family = "",
+                         parse = FALSE, padding = unit(c(1, 1), "mm"))
+  
+)
+
+
+
+breadth_plt_median <- effector_comp_summ %>% 
+  ggplot(aes(x = breadth, y = median_loss, colour = condition)) + 
+  geom_point() +
+  theme_minimal(base_size = 20) + 
+  labs(x = "Breadth", y = "Median loss", colour = "Condition") + 
+  scale_color_manual(values = c("#334499", "#994433"), labels = c(
+    "numb" = "High impact",
+    "rand" = "Randomly selected"
+  )) +
+  ggrepel::geom_text_repel(
+    data = subset(effector_comp_summ, rank_median_l <= 18 & condition == "numb"),
+    aes(label = source, x = breadth, y = median_loss),
+    size = 3,
+    vjust = -4.2,
+    hjust = 0.5,
+    segment.color = "gray",     
+    segment.size = 1.1,           
+    segment.alpha = 0.7,          
+    min.segment.length = 0,
+    show.legend = FALSE
+  ) +
+  annotation_custom(
+    my_table, 
+    xmin = 0.02,   
+    xmax = 0.35,   
+    ymin = 0.1,   
+    ymax = 0.40    
+  ) +
+  theme(legend.position = "none")
+
+breadth_plt_max <- effector_comp_summ %>% 
+  ggplot(aes(x = breadth, y = max_loss, colour = condition)) + 
+  geom_point() +
+  theme_minimal(base_size = 20) + 
+  labs(x = "Breadth", y = "Maximum loss", colour = "Condition") + 
+  scale_color_manual(values = c("#334499", "#994433"), labels = c(
+    "numb" = "High impact",
+    "rand" = "Randomly selected"
+  )) +
+  ggrepel::geom_text_repel(
+    data = subset(effector_comp_summ, rank_median_l <= 18 & condition == "numb"),
+    aes(label = source, x = breadth, y = max_loss),
+    size = 3,
+    vjust = -4.2,
+    hjust = 0.5,
+    segment.color = "gray",     
+    segment.size = 1.1,           
+    segment.alpha = 0.7,          
+    min.segment.length = 0,
+    show.legend = FALSE
+  ) 
+
+
+breadth_plt_min <- effector_comp_summ %>% 
+  ggplot(aes(x = breadth, y = min_loss, colour = condition)) + 
+  geom_point() +
+  theme_minimal(base_size = 20) + 
+  labs(x = "Breadth", y = "Min loss", colour = "Condition") + 
+  scale_color_manual(values = c("#334499", "#994433"), labels = c(
+    "numb" = "High impact",
+    "rand" = "Randomly selected"
+  )) +
+  ggrepel::geom_text_repel(
+    data = subset(effector_comp_summ, rank_median_l <= 18 & condition == "numb"),
+    aes(label = source, x = breadth, y = min_loss),
+    size = 3,
+    vjust = -4.2,
+    hjust = 0.5,
+    segment.color = "gray",     
+    segment.size = 1.1,           
+    segment.alpha = 0.7,          
+    min.segment.length = 0,
+    show.legend = FALSE
+  ) +
+  theme(legend.position = "none")
+
+
+(((first_bxpl_med | second_bxplt_med) /
+    (first_bxpl_max | second_bxplt_max) /
+    (first_bxpl_min | second_bxplt_min)
+) |
+    (breadth_plt_median /
+       breadth_plt_max /
+       breadth_plt_min
+    )) +
+  patchwork::plot_annotation(tag_levels =  "A")
+
