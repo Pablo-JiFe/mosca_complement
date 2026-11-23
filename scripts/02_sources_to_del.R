@@ -60,3 +60,4 @@ eff_stat <- eff_metr %>%
 
 saveRDS(eff_stat$dominant_source, "results/source_to_del.RDS")
 saveRDS(eff_stat, "results/source_to_del_data.RDS")
+saveRDS(eff_metr, "results/source_to_del_data_full.RDS")
