@@ -9,6 +9,7 @@ suppressPackageStartupMessages({
 })
 
 source("scripts/_config.R")
+source("scripts/_lib.R")
 
 set.seed(RNG_SEED)
 
@@ -17,6 +18,10 @@ meta <- read_parquet("data/derived/unit_meta.parquet")
 metrics <- read_tsv("results/perturbome_metrics.tsv", show_col_types = FALSE)
 pairs <- read_tsv("results/degeneracy_pairs.tsv", show_col_types = FALSE)
 p <- read_parquet("results/perturbome_indirect.parquet")
+degeneracy_null <- readr::read_tsv("results/degeneracy_null_9999.tsv")
+structural_summary <- readr::read_tsv("results/degeneracy_structural_summary.tsv")
+degeneracy_pairs_fus <- readr::read_tsv("results/degeneracy_pairs.tsv")
+
 
 
 
@@ -39,6 +44,11 @@ normed <- normalize_signatures(X, ZERO_TOL)
 row_total <- normed$total
 active <- normed$active
 prob <- normed$prob
+
+prob_active <- prob[active, , drop = FALSE]
+sources_active <- sources[active]
+
+
 
 
 stopifnot(
@@ -92,6 +102,8 @@ edge_key_set <- unique(edge_keys)
 # repeat the SAME nearest-distinct-type search, so the null includes the
 # nearest-neighbour selection effect rather than comparing a maximum to random
 # single pairs. A fixed random subset keeps this paper-grade check tractable.
+
+
 null_n <- min(DEGENERACY_NULL_SAMPLE, nrow(prob_active))
 null_ids <- sample(seq_len(nrow(prob_active)), null_n, replace = FALSE)
 prob_null_base <- prob_active[null_ids, , drop = FALSE]
@@ -101,6 +113,7 @@ observed_null_subset <- nearest_distinct_type(
   prob_null_base, sources_null, meta
 )$nearest_cosine
 observed_null_median <- median(observed_null_subset, na.rm = TRUE)
+
 
 degeneracy_null <- map_dfr(seq_len(DEGENERACY_PERMUTATIONS), function(b) {
   permuted <- vapply(
@@ -174,4 +187,84 @@ degeneracy_null <- map_dfr(seq_len(DEGENERACY_PERMUTATIONS), function(b) {
 
 
 
-median(degeneracy_null$prop_sup_dom)
+
+chi_table_same_dom <- 
+  data.frame(
+    true = c(sum(degeneracy_pairs_fus$same_dom_eff), sum(degeneracy_null$same_dom_eff_quant)),
+    false = c(sum(!degeneracy_pairs_fus$same_dom_eff), sum(degeneracy_null$n_valid - degeneracy_null$same_dom_eff_quant)),
+    row.names = c("Observed", "Null")
+  )
+
+chi_table_same_superclass <- 
+  data.frame(
+    true = c(sum(degeneracy_pairs_fus$same_superclass), sum(degeneracy_null$superclass_similarity)),
+    false = c(sum(!degeneracy_pairs_fus$same_superclass), sum(degeneracy_null$n_valid - degeneracy_null$superclass_similarity)),
+    row.names = c("Observed", "Null")
+  )
+
+degeneracy_null_summary <- tibble(
+  n_sources = null_n,
+  permutations = DEGENERACY_PERMUTATIONS,
+  observed_median = observed_null_median,
+  observed_dir_con = 1 - structural_summary$fraction_no_direct_edge,
+  observed_jaccard_out = structural_summary$median_out_neighbor_jaccard,
+  observed_jaccard_in = structural_summary$median_in_neighbor_jaccard,
+  observed_super_sim = sum(degeneracy_pairs_fus$same_superclass) / length(degeneracy_pairs_fus$same_superclass),
+  observed_domeff_sim = sum(degeneracy_pairs_fus$same_dom_eff) / length(degeneracy_pairs_fus$same_dom_eff),
+  null_median_mean = mean(
+    degeneracy_null$median_nearest_distinct_type_cosine
+  ),
+  null_median_q95 = quantile(
+    degeneracy_null$median_nearest_distinct_type_cosine, 0.95
+  ),
+  null_dir_con_mean = mean(
+    degeneracy_null$prop_direct_con
+  ),
+  null_jacc_out_mean = mean(degeneracy_null$median_out),
+  null_jacc_in_mean = mean(degeneracy_null$median_in),
+  null_prop_super = sum(degeneracy_null$superclass_similarity) / sum(degeneracy_null$n_valid),
+  null_prop_domeff = sum(degeneracy_null$same_dom_eff_quant) / sum(degeneracy_null$n_valid),
+  
+  permutation_p_one_sided = (
+    1 + sum(
+      degeneracy_null$median_nearest_distinct_type_cosine >=
+        observed_null_median
+    )
+  ) / (1 + DEGENERACY_PERMUTATIONS),
+  
+  permutation_p_one_sided_con = (
+    1 + sum(
+      degeneracy_null$prop_direct_con >=
+        1 - structural_summary$fraction_no_direct_edge
+    )
+  ) / (1 + DEGENERACY_PERMUTATIONS),
+  
+  permutation_p_one_sided_jacc_in = (
+    1 + sum(
+      degeneracy_null$median_in >=
+        structural_summary$median_in_neighbor_jaccard
+    )
+  ) / (1 + DEGENERACY_PERMUTATIONS),
+  
+  permutation_p_one_sided_jacc_out = (
+    1 + sum(
+      degeneracy_null$median_in >=
+        structural_summary$median_out_neighbor_jaccard
+    )
+  ) / (1 + DEGENERACY_PERMUTATIONS),
+  
+  
+  p_value_chi_same_dom <- chisq.test(chi_table_same_dom)$p.value,
+  
+  p_value_chi_same_super <- chisq.test(chi_table_same_superclass)$p.value
+  
+  
+  
+  
+)
+
+degeneracy_null_summary$permutation_p_one_sided_jacc_in
+
+mean(degeneracy_null$median_nearest_distinct_type_cosine)
+
+write_tsv(degeneracy_null, "./degeneracy_null_9999.tsv")
